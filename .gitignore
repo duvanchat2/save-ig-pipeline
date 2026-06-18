@@ -1,0 +1,32 @@
+# Secretos — nunca commitear
+.env
+ig_session.json
+
+# Control de estado (contiene IDs de Instagram, reconstruible)
+state.json
+
+# Logs de automatización
+pipeline.log
+
+# Archivos temporales de prueba
+_ids_to_delete.json
+last5_saves.json
+reels_raw.json
+saved_test.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+
+# Windows
+Thumbs.db
+desktop.ini
+
+# Claude Code local
+.claude/settings.local.json

@@ -1,6 +1,7 @@
 # Secretos — nunca commitear
 .env
 ig_session.json
+ig_cookies.json
 
 # Control de estado (contiene IDs de Instagram, reconstruible)
 state.json

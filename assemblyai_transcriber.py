@@ -3,13 +3,28 @@ Transcripcion de reels de Instagram usando AssemblyAI.
 Descarga el audio con yt-dlp (sin autenticacion — funciona para reels publicos).
 Si el reel es privado, la descarga fallara y se retorna "".
 """
+import json
 import os
 import tempfile
 import time
+from pathlib import Path
 
 from config import ASSEMBLYAI_API_KEY
 
 _API_BASE = "https://api.assemblyai.com/v2"
+
+
+def _write_netscape_cookies(cookies: list[dict], path: str):
+    lines = ["# Netscape HTTP Cookie File\n"]
+    for c in cookies:
+        domain = c.get("domain", ".instagram.com")
+        if not domain.startswith("."):
+            domain = "." + domain
+        secure  = "TRUE" if c.get("secure") else "FALSE"
+        expires = str(int(c.get("expirationDate", 0)))
+        lines.append(f"{domain}\tTRUE\t/\t{secure}\t{expires}\t{c.get('name','')}\t{c.get('value','')}\n")
+    with open(path, "w", encoding="utf-8") as f:
+        f.writelines(lines)
 
 
 def _download_audio(url: str, tmpdir: str) -> str | None:
@@ -26,6 +41,17 @@ def _download_audio(url: str, tmpdir: str) -> str | None:
         "quiet": True,
         "no_warnings": True,
     }
+
+    # Usar cookies del navegador si están disponibles (mejora acceso a reels)
+    cookies_json = Path(__file__).parent / "ig_cookies.json"
+    if cookies_json.exists():
+        cookies_file = os.path.join(tmpdir, "ig_cookies.txt")
+        try:
+            raw = json.load(open(cookies_json, encoding="utf-8"))
+            _write_netscape_cookies(raw, cookies_file)
+            ydl_opts["cookiefile"] = cookies_file
+        except Exception:
+            pass
 
     # Usar FFmpeg para extraer MP3 si está disponible
     try:

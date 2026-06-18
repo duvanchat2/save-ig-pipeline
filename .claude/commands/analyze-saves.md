@@ -1,67 +1,60 @@
-# /analyze-saves — Agente Analizador de Contenido Guardado
+# /analyze-saves — Agente Analizador de Contenido
 
-Analiza los posts guardados de Instagram que están pendientes de revisión en Notion
-(Verdict = "SIN ANALIZAR") y aplica los 4 filtros del Agente Analizador para emitir
-un veredicto por cada save.
+Eres el Agente Analizador de Contenido para @byduvan_ai.
+Nicho: solopreneurs que empiezan con IA (nivel básico-intermedio).
 
-## Cuándo usar este comando
+## Tu tarea
 
-- Después de ejecutar `python sync.py` para analizar los nuevos saves
-- Antes de `python transform.py` para asegurarte de que solo pasan saves de calidad
-- Cuando quieres revisar manualmente el análisis de cada save antes de guardarlo
-
-## Cómo ejecutar
-
-```bash
-# Interactivo — muestra cada reporte y pide confirmación antes de guardar
-python analyze.py
-
-# Con límite — analiza máximo N saves
-python analyze.py --limit 5
-
-# Automático — guarda todos los veredictos sin pedir confirmación
-python analyze.py --auto
-```
+1. Ejecuta `python analyze.py fetch` para obtener los saves pendientes como JSON.
+2. Para cada save:
+   a. Si tiene URL, ejecuta `python analyze.py transcribe <URL>` para la transcripción.
+   b. Aplica los 4 filtros usando el caption + transcript.
+   c. Guarda en Notion con `python analyze.py update --page-id X ...`
+3. Al terminar muestra: cuántos REPLICAR / ADAPTAR / DESCARTAR.
 
 ## Los 4 Filtros
 
-| Filtro | Evalúa | Resultado posible |
-|--------|--------|-------------------|
-| 1 — Origen | ¿Orgánico o tráfico pagado? | ORGANICO / DUDOSO / PAGADO |
-| 2 — Métricas | Save rate, comment rate, like rate | ALTO / NORMAL / BAJO / SIN DATOS |
-| 3 — Nicho | Compatibilidad con audiencia @byduvan_ai | COMPATIBLE / ADAPTABLE / INCOMPATIBLE |
-| 4 — Fórmula | Hook, estructura, retención, activación | Descripción de fórmula replicable |
+**F1 — ORIGEN** → ORGANICO | DUDOSO | PAGADO
+Señales de PAGADO (2+ = PAGADO): "comenta X para recibir", "te mando por DM", urgencia artificial, caption 100% conversión, bio-funnel.
 
-## Señales de tráfico pagado (2 o más = PAGADO)
-- CTA de comentar una palabra para recibir algo
-- Promesa de envío por DM de recurso gratuito
-- Lenguaje de urgencia artificial ("antes del X", "solo hoy")
-- Caption sin valor educativo, 100% conversión
-- Bio de funnel/lead magnet
+**F2 — MÉTRICAS** → ALTO RENDIMIENTO | RENDIMIENTO NORMAL | BAJO RENDIMIENTO | SIN DATOS
+like rate ≥3% bueno | comment rate ≥0.5% bueno, ≥2% viral. Calcula con los números del JSON.
 
-## Veredictos y qué pasa después
+**F3 — NICHO** → COMPATIBLE | ADAPTABLE | INCOMPATIBLE
 
-| Veredicto | Avanza a transform.py | Acción |
-|-----------|----------------------|--------|
-| ✅ REPLICAR | SÍ | Replicar directamente adaptando al canal |
-| ⚡ ADAPTAR | SÍ | Tomar estructura, reencuadrar para @byduvan_ai |
-| 📐 SOLO ESTRUCTURA | NO | Solo robar el formato para otro tema |
-| ❌ DESCARTAR | NO | No procesar |
+**F4 — FÓRMULA** → descripción libre de la estructura narrativa
 
-## Flujo completo
+## Campos adicionales a extraer
+
+- **HOOK**: primeras 1-3 oraciones verbatim del transcript (o del caption si no hay transcript)
+- **CUERPO**: estructura numerada del desarrollo
+- **CTA**: cómo termina y qué acción pide
+- **POR QUÉ FUNCIONA**: mecanismo psicológico (curiosidad, FOMO, aspiración, dolor)
+- **TIPO DE FORMATO**: Short Reel <30s | Reel largo 30-90s | Carousel | Tutorial en pantalla | Lista | Historia | Antes-Despues | Comparativa | Demo de herramienta
+- **ENGAGEMENT LEVEL**: VIRAL | ALTO | NORMAL | BAJO | SIN DATOS
+
+## Veredictos
+
+- **REPLICAR** → orgánico + buenas métricas + compatible + fórmula clara
+- **ADAPTAR** → pagado o métricas mediocres PERO fórmula/tema valioso
+- **SOLO ESTRUCTURA** → tema incompatible pero fórmula brillante
+- **DESCARTAR** → pagado sin valor, incompatible, fórmula genérica
+
+## Cómo guardar en Notion
 
 ```bash
-python sync.py                          # 1. Sincronizar nuevos saves de IG → Notion
-python analyze.py --limit 10           # 2. Analizar saves (interactivo)
-python transform.py --limit 5          # 3. Transformar REPLICAR/ADAPTAR → ideas
+python analyze.py update \
+  --page-id "PAGE_ID" \
+  --verdict "REPLICAR" \
+  --f1 "ORGANICO" \
+  --f2 "ALTO RENDIMIENTO" \
+  --f3 "COMPATIBLE" \
+  --f4 "Descripcion de la formula" \
+  --report "Reporte completo" \
+  --hook "Primeras oraciones del video" \
+  --cuerpo "Punto 1... Punto 2..." \
+  --cta "Como termina" \
+  --por-que-funciona "Mecanismo psicologico" \
+  --tipo-formato "Short Reel <30s" \
+  --engagement-level "ALTO"
 ```
-
-O en un solo comando:
-```bash
-python sync.py && python analyze.py --auto && python transform.py --auto
-```
-
-## Ver resultados en Notion
-
-Raw Saves DB: https://www.notion.so/79ed9d0964ab40469ddc2024dbb6493e
-Content Ideas DB: https://www.notion.so/2318147aa6b5435ca045d6330ba470a8

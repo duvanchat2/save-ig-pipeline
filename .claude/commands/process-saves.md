@@ -1,46 +1,47 @@
-# Process Instagram Saves
+# /process-saves — Agente Generador de Ideas de Contenido
 
-Transforma los posts guardados de Instagram (Raw Saves en Notion) en borradores
-de contenido listos para producción (Content Ideas en Notion).
+Eres un estratega de contenido para @byduvan_ai.
+Nicho: solopreneurs que empiezan con IA (nivel básico-intermedio).
+Pilares: Outreach, Proof, Tools, Process.
 
-## Lo que hace este comando
+## Tu tarea
 
-1. Consulta Notion Raw Saves DB y obtiene entradas con `Processed = false`
-2. Para cada save, usa Claude AI para generar:
-   - Nombre/título de la idea
-   - Pilar de contenido asignado (Outreach / Proof / Tools / Process)
-   - 3 hooks (curiosidad, dolor, resultado)
-   - Outline estructurado: Hook → Body → CTA
-   - Formato y plataformas recomendadas
-3. Presenta cada idea para revisión antes de guardar (o usa `--auto` para aprobar todo)
-4. Escribe las ideas aprobadas en Content Ideas DB y marca el save como procesado
+1. Ejecuta `python transform.py fetch` para obtener saves con Verdict=REPLICAR o ADAPTAR.
+2. Para cada save:
+   a. Lee el transcript, caption, hook, cuerpo y CTA guardados en Notion.
+   b. Genera la idea de contenido (ver estructura abajo).
+   c. Muéstrame la idea y pregunta si guardar.
+3. Para los aprobados: ejecuta `python transform.py save --data '{...}'`
 
-## Uso
+## Estructura de la idea a generar
 
-```bash
-# Modo interactivo (recomendado): revisa idea por idea
-python transform.py
+**Si Verdict = REPLICAR:**
+Conserva la misma estructura, hook y ritmo del video original.
+Adapta el tema y los ejemplos a solopreneurs con IA.
 
-# Aprobar todo automáticamente
-python transform.py --auto
+**Si Verdict = ADAPTAR:**
+Crea contenido ORIGINAL usando la fórmula del video como plantilla.
+El tema debe ser nuevo, relevante para nuestra audiencia.
 
-# Procesar solo los primeros N saves
-python transform.py --limit 5
+## Campos a generar
 
-# Combinar: auto + límite
-python transform.py --auto --limit 10
+```json
+{
+  "name": "Título para el canal (max 80 chars)",
+  "pillar": "Outreach | Proof | Tools | Process",
+  "format": "Carousel | Reel | Short Video | Long-form",
+  "platforms": ["Instagram", "TikTok", "YouTube"],
+  "priority": "High | Medium | Low",
+  "hooks": "Hook 1 (curiosidad): ...\nHook 2 (dolor): ...\nHook 3 (resultado): ...",
+  "outline": "HOOK: ...\n\nBODY:\n1. ...\n2. ...\n3. ...\n\nCTA: ...",
+  "guion": "Guión completo listo para grabar"
+}
 ```
 
-## Requisitos previos
+## Cómo guardar en Notion
 
-- Archivo `.env` configurado con `NOTION_TOKEN`, `NOTION_RAW_SAVES_DB_ID`,
-  `NOTION_CONTENT_IDEAS_DB_ID`, y `ANTHROPIC_API_KEY`
-- Haber ejecutado `python sync.py` al menos una vez para tener Raw Saves en Notion
-
-## Notas
-
-- El nicho objetivo está configurado en `.env` como `CONTENT_NICHE`
-- Los pilares están en `CONTENT_PILLARS`
-- Si Claude falla en un save (error de API), ese save se omite y continúa con el siguiente
+```bash
+python transform.py save --source-page-id "PAGE_ID" --data '{"name":"...","pillar":"Tools","format":"Reel","platforms":["Instagram"],"priority":"High","hooks":"...","outline":"...","guion":"..."}'
+```
 
 $ARGUMENTS

@@ -1,16 +1,15 @@
 """
-Fase 3 — Transforma saves aprobados en ideas de contenido para Content Ideas DB.
-Lee Raw Saves donde Verdict=REPLICAR o ADAPTAR, busca transcript en Transcriber DB
-(o lo genera con WhisperX), luego genera ideas con Claude y las sube a Content Ideas DB.
+Fase 3 — Herramienta de datos para el Agente Generador de Ideas.
 
-REPLICAR -> guion que replica la estructura del original adaptado al canal
-ADAPTAR  -> contenido original que solo toma la formula/estructura
+Modos:
+  fetch              Imprime JSON de saves con Verdict=REPLICAR o ADAPTAR
+  save --data JSON   Guarda una idea en Content Ideas DB y marca el save como procesado
 
-Uso:
-  python transform.py                    # Interactivo
-  python transform.py --auto             # Sin confirmacion
-  python transform.py --limit 5          # Maximo N saves
-  python transform.py --skip-transcribe  # No transcribe, usa solo caption
+Uso via Claude Code (recomendado — sin API key):
+  /process-saves     El agente genera las ideas usando su propia inteligencia
+
+Uso autonomo (requiere ANTHROPIC_API_KEY en .env):
+  python transform.py --auto
 """
 import argparse
 import json
@@ -263,8 +262,33 @@ def run(auto: bool = False, limit: int = 0, skip_transcribe: bool = False):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    sub = parser.add_subparsers(dest="mode")
+
+    # Modo fetch — para Claude Code
+    sub.add_parser("fetch", help="Imprime saves REPLICAR/ADAPTAR como JSON")
+
+    # Modo save — Claude Code llama esto con la idea generada
+    sv = sub.add_parser("save", help="Guarda una idea en Content Ideas DB")
+    sv.add_argument("--source-page-id", required=True)
+    sv.add_argument("--data", required=True, help="JSON con los campos de la idea")
+
+    # Modo legado (requiere ANTHROPIC_API_KEY)
     parser.add_argument("--auto", action="store_true")
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--skip-transcribe", action="store_true")
+
     args = parser.parse_args()
-    run(auto=args.auto, limit=args.limit, skip_transcribe=args.skip_transcribe)
+
+    if args.mode == "fetch":
+        saves = get_unprocessed_saves()
+        print(json.dumps(saves, ensure_ascii=False, indent=2))
+
+    elif args.mode == "save":
+        idea = json.loads(args.data)
+        idea["source_page_id"] = args.source_page_id
+        url = add_content_idea(idea)
+        mark_save_processed(args.source_page_id)
+        print(f"OK: guardada en Content Ideas -> {url}")
+
+    else:
+        run(auto=args.auto, limit=args.limit, skip_transcribe=args.skip_transcribe)

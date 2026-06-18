@@ -15,7 +15,7 @@ NOTION_CONTENT_IDEAS_DB_ID = os.getenv("NOTION_CONTENT_IDEAS_DB_ID", "")
 META_ACCESS_TOKEN = os.getenv("META_ACCESS_TOKEN", "")
 IG_USER_ID = os.getenv("IG_USER_ID", "")
 
-# Claude API
+# Claude API — solo necesaria si usas transform.py --auto sin Claude Code
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 
 # AssemblyAI

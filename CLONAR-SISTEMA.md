@@ -54,8 +54,8 @@ Instagram (posts guardados)
 | Componente | Tecnología | Versión mínima |
 |------------|-----------|----------------|
 | Runtime | Python | 3.12 |
-| Autenticación Instagram | agent-browser cookies (instagram-transcriber) | — |
-| API Instagram | HTTP directo a endpoints internos (`/api/v1/`) | — |
+| Autenticación Instagram | Meta Graph API (User Access Token) | API v19.0 |
+| API Instagram | Meta Graph API (`/saved_media`) | — |
 | Transcripción audio | AssemblyAI API | API v2 |
 | Descarga de audio | yt-dlp | ≥2024.1.0 |
 | Base de datos | Notion (2 DBs) | API v1 |
@@ -67,23 +67,15 @@ Instagram (posts guardados)
 
 **NOTA CRÍTICA — `notion-client`:** Usar versión `>=2.2.1` y `<3.0`. La v3.0 eliminó el método `.query()` que usa `notion_db.py`. El sistema fallará silenciosamente con v3.0+.
 
-**NOTA CRÍTICA — `ig_fetcher.py`:** No usa la librería `instagrapi`. Usa llamadas HTTP directas a los endpoints internos de Instagram usando cookies del proyecto `instagram-transcriber`. Requiere que ese proyecto esté instalado en el path hardcodeado.
+**NOTA CRÍTICA — `ig_fetcher.py`:** Usa Meta Graph API con un User Access Token. Requiere permiso `user_saved_media` en el token. Para uso personal (tu propia cuenta como admin de la app), no necesita App Review de Meta.
 
 ---
 
 ## 3. ARQUITECTURA DEL SISTEMA
 
-### Dependencia externa crítica: `instagram-transcriber`
+### Autenticación Instagram
 
-El sistema depende de un proyecto separado ubicado en:
-```
-C:\Users\duvan\OneDrive\Documentos\scraperinstagram\instagram-transcriber\
-```
-
-De este proyecto se importa:
-- `scraper.agent_browser_session.get_instagram_cookies` — usado por `ig_fetcher.py` y `assemblyai_transcriber.py`
-
-Esta función retorna cookies del navegador (agent-browser) que permiten autenticarse en Instagram sin usuario/contraseña.
+El sistema usa la **Meta Graph API** con un User Access Token. No depende de cookies ni de proyectos externos. El token se obtiene desde el [Meta Developer Portal](https://developers.facebook.com) y se renueva cada 60 días (token de larga duración). Ver instrucciones completas en la Sección 9.
 
 ### Flujo de datos detallado
 
@@ -486,6 +478,23 @@ Sistema @byduvan_ai IG  (página raíz)
 
 ---
 
+### 6.0 Plantillas Notion (duplicar antes de instalar)
+
+> Para clonar el sistema, duplica estas plantillas en tu propio workspace de Notion y luego conecta tu integración a las páginas duplicadas.
+
+| Plantilla | Link para duplicar |
+|-----------|-------------------|
+| 📥 Raw Saves DB | **REVISIÓN REQUERIDA** — El creador debe publicar la plantilla y agregar el link aquí |
+| 💡 Content Ideas DB | **REVISIÓN REQUERIDA** — El creador debe publicar la plantilla y agregar el link aquí |
+
+**Cómo publicar como plantilla (para el creador):**
+1. Abrir la página raíz "IG Saver" en Notion
+2. Click en `...` → `Share` → `Publish to web`
+3. Activar `Allow duplicate as template`
+4. Copiar el link y reemplazar los "REVISIÓN REQUERIDA" de arriba
+
+---
+
 ### 6.1 DB: 📥 Instagram Raw Saves
 
 **URL:** https://app.notion.com/p/79ed9d0964ab40469ddc2024dbb6493e
@@ -571,25 +580,23 @@ Claude Code usa el servidor MCP de Notion para inspección y edición del esquem
 
 ## 8. VARIABLES DE ENTORNO
 
-Crear archivo `.env` en la raíz del proyecto:
+Crear archivo `.env` en la raíz del proyecto (copiar de `.env.example` y rellenar):
 
 ```bash
 # ── Notion ──────────────────────────────────────────────────────────────────────
-NOTION_TOKEN=<PLACEHOLDER: secret_xxx de Notion Integration>
-NOTION_RAW_SAVES_DB_ID=79ed9d0964ab40469ddc2024dbb6493e
-NOTION_CONTENT_IDEAS_DB_ID=2318147aa6b5435ca045d6330ba470a8
+NOTION_TOKEN=secret_xxx
+NOTION_RAW_SAVES_DB_ID=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+NOTION_CONTENT_IDEAS_DB_ID=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
-# ── Instagram ────────────────────────────────────────────────────────────────────
-# No se usa usuario/contraseña. Las cookies se obtienen del instagram-transcriber.
-IG_USERNAME=<PLACEHOLDER: tu @usuario de Instagram, solo referencia>
-IG_SESSION_FILE=./ig_session.json
+# ── Meta / Instagram Graph API ───────────────────────────────────────────────────
+META_ACCESS_TOKEN=EAAxxxxxxxxxxxxxxxx
+IG_USER_ID=123456789012345
 
-# ── LLM APIs ─────────────────────────────────────────────────────────────────────
-ANTHROPIC_API_KEY=<PLACEHOLDER: sk-ant-api03-xxx>
-ASSEMBLYAI_API_KEY=<PLACEHOLDER: clave de assemblyai.com>
+# ── APIs de IA ───────────────────────────────────────────────────────────────────
+ANTHROPIC_API_KEY=sk-ant-api03-xxx
+ASSEMBLYAI_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 # ── Configuración del pipeline ───────────────────────────────────────────────────
-INSTAGRAM_COLLECTIONS=Saved
 CONTENT_NICHE=beginner AI solo founders
 CONTENT_PILLARS=Outreach,Proof,Tools,Process
 ```
@@ -598,9 +605,11 @@ CONTENT_PILLARS=Outreach,Proof,Tools,Process
 
 | Variable | Dónde obtenerla |
 |----------|----------------|
-| `NOTION_TOKEN` | notion.com → Settings → Connections → Develop or manage integrations → New integration → copiar "Internal Integration Token" |
-| `NOTION_RAW_SAVES_DB_ID` | URL de la DB en Notion: `notion.so/{ID}` o `app.notion.com/p/{ID}` |
+| `NOTION_TOKEN` | notion.com → Settings → Connections → Develop or manage integrations → New integration → "Internal Integration Token" |
+| `NOTION_RAW_SAVES_DB_ID` | URL de la DB duplicada: `app.notion.com/p/{ID}` |
 | `NOTION_CONTENT_IDEAS_DB_ID` | Igual que arriba |
+| `META_ACCESS_TOKEN` | Ver Sección 9 — Paso de configuración Meta API |
+| `IG_USER_ID` | `GET https://graph.facebook.com/me?fields=id&access_token=TU_TOKEN` |
 | `ANTHROPIC_API_KEY` | console.anthropic.com → API Keys |
 | `ASSEMBLYAI_API_KEY` | assemblyai.com → Dashboard → API Key |
 
@@ -608,7 +617,7 @@ CONTENT_PILLARS=Outreach,Proof,Tools,Process
 - Read content ✓
 - Update content ✓
 - Insert content ✓
-- La integración debe tener acceso a las páginas padre: "Sistema @byduvan_ai IG" → "IG Saver"
+- Conectar la integración a la página "IG Saver" (página contenedora de ambas DBs)
 
 ---
 
@@ -616,11 +625,10 @@ CONTENT_PILLARS=Outreach,Proof,Tools,Process
 
 ### Prerrequisitos
 - [ ] Windows 10/11 con Python 3.12+ instalado
-- [ ] Proyecto `instagram-transcriber` funcional en `C:\Users\{user}\OneDrive\Documentos\scraperinstagram\instagram-transcriber\`
+- [ ] Cuenta de Meta Developer (gratuita) con una app creada
 - [ ] Cuenta de Notion con integración creada
 - [ ] API key de Anthropic (con créditos disponibles)
 - [ ] API key de AssemblyAI
-- [ ] yt-dlp instalable via pip
 - [ ] FFmpeg instalado en PATH (opcional, mejora calidad de audio)
 
 ### Paso 1 — Clonar / copiar carpeta
@@ -646,28 +654,37 @@ pip install -r requirements.txt
 # NUNCA commitear el .env a git
 ```
 
-### Paso 4 — Actualizar paths hardcodeados
+### Paso 4 — Configurar Meta API token (Instagram)
 
-Los siguientes archivos tienen el path del proyecto `instagram-transcriber` hardcodeado. Actualizar al path correcto en la nueva máquina:
+El sistema usa la Meta Graph API para acceder a tus posts guardados.
 
-**`ig_fetcher.py` línea 17:**
-```python
-_TRANSCRIBER_DIR = Path(r"C:\Users\{TU_USUARIO}\OneDrive\Documentos\scraperinstagram\instagram-transcriber")
+**4a — Crear app en Meta Developer Portal**
+1. Ir a [developers.facebook.com](https://developers.facebook.com) → "My Apps" → "Create App"
+2. Tipo: **Consumer** (uso personal)
+3. Agregar producto: **Instagram** → "Instagram API"
+
+**4b — Generar User Access Token**
+1. En el portal → "Tools" → [Graph API Explorer](https://developers.facebook.com/tools/explorer/)
+2. Seleccionar tu app en el dropdown
+3. Click "Generate Access Token"
+4. Agregar permiso: `user_saved_media` (buscar en la lista)
+5. Copiar el token generado (válido por 1 hora)
+
+**4c — Convertir a token de larga duración (60 días)**
+```bash
+curl "https://graph.facebook.com/oauth/access_token?grant_type=fb_exchange_token&client_id={APP_ID}&client_secret={APP_SECRET}&fb_exchange_token={SHORT_TOKEN}"
 ```
+Copiar el `access_token` de la respuesta → pegarlo como `META_ACCESS_TOKEN` en `.env`
 
-**`assemblyai_transcriber.py` línea 13:**
-```python
-_TRANSCRIBER_DIR = Path(r"C:\Users\{TU_USUARIO}\OneDrive\Documentos\scraperinstagram\instagram-transcriber")
+**4d — Obtener tu Instagram User ID**
+```bash
+curl "https://graph.facebook.com/me?fields=id&access_token=TU_TOKEN_LARGA_DURACION"
 ```
+Copiar el `id` → pegarlo como `IG_USER_ID` en `.env`
 
-**`transform.py` línea 35:**
-```python
-TRANSCRIBER_DIR = Path(r"C:\Users\{TU_USUARIO}\OneDrive\Documentos\scraperinstagram\instagram-transcriber")
-```
-
-**`run_pipeline.bat` líneas 7-8:**
+**4e — Actualizar paths en `run_pipeline.bat`**
 ```bat
-SET PROJECT_DIR=C:\Users\{TU_USUARIO}\OneDrive\Documentos\save IG
+SET PROJECT_DIR=C:\Users\{TU_USUARIO}\ruta\al\proyecto
 SET PYTHON=C:\Users\{TU_USUARIO}\AppData\Local\Programs\Python\Python312\python.exe
 ```
 
@@ -679,7 +696,7 @@ Si las DBs ya existen (copiando el sistema), solo actualizar los IDs en `.env`.
 
 **Permisos:** Ir a cada DB en Notion → `...` → Connections → Add connection → seleccionar tu integración.
 
-### Paso 6 — Verificar cookies de Instagram
+### Paso 6 — Verificar token de Meta
 
 ```bash
 python ig_fetcher.py --test
@@ -687,12 +704,13 @@ python ig_fetcher.py --test
 
 Debe mostrar:
 ```
-[ig] X cookies cargadas — sessionid: SI
-[ig] Saves encontrados (muestra 3): 3
+[ig] Token valido — ID: 123456789 | Nombre: Tu Nombre
+[ig] Saves obtenidos: 3
   • @autor1 — Reel — https://www.instagram.com/reel/xxx/
 ```
 
-Si falla, el problema está en las cookies del `instagram-transcriber`. Renovar la sesión en ese proyecto.
+Si aparece error `code: 190` → token expirado, generar uno nuevo.
+Si aparece error `code: 200` → permiso `user_saved_media` no habilitado, revisar Paso 4b.
 
 ### Paso 7 — Verificar conexión a Notion
 
@@ -814,17 +832,24 @@ Task Scheduler → run_pipeline.bat → sync.py → analyze.py --auto → transf
 
 ## 12. RESOLUCIÓN DE PROBLEMAS
 
-### Error: `ModuleNotFoundError: scraper.agent_browser_session`
+### Error: `code: 190` — Token expirado
 
-**Causa:** El proyecto `instagram-transcriber` no está en el path hardcodeado.
-**Solución:** Actualizar `_TRANSCRIBER_DIR` en `ig_fetcher.py` y `assemblyai_transcriber.py` con el path correcto.
+**Causa:** El `META_ACCESS_TOKEN` tiene 60 días de vida y expiró.
+**Solución:** Volver a Paso 4b-4c de la instalación: generar short token en Graph API Explorer y convertir a long-lived token. Actualizar en `.env`.
 
 ---
 
-### Error: `sessionid: NO` al ejecutar `ig_fetcher.py --test`
+### Error: `code: 200` — Permiso denegado
 
-**Causa:** Las cookies de Instagram del agent-browser han expirado.
-**Solución:** Renovar la sesión en el proyecto `instagram-transcriber`. Consultar la documentación de ese proyecto para el proceso de renovación.
+**Causa:** El token no tiene el permiso `user_saved_media`.
+**Solución:** En Graph API Explorer, regenerar el token asegurándose de marcar `user_saved_media` en la lista de permisos.
+
+---
+
+### Error: `code: 100` — IG_USER_ID incorrecto
+
+**Causa:** El `IG_USER_ID` en `.env` no corresponde a tu cuenta de Instagram.
+**Solución:** Ejecutar `curl "https://graph.facebook.com/me?fields=id&access_token=TU_TOKEN"` y usar ese ID.
 
 ---
 

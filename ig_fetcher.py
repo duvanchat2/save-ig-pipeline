@@ -1,156 +1,124 @@
 """
-Extrae posts guardados de Instagram usando las cookies del agent-browser
-(mismo sistema que usa instagram-transcriber — sin contraseña).
+Extrae posts guardados de Instagram usando Meta Graph API.
+Requiere un User Access Token con permiso user_saved_media
+y el Instagram User ID de tu cuenta.
 
 Uso:
-  python ig_fetcher.py --test      # Verifica cookies y muestra cuantos saves hay
+  python ig_fetcher.py --test      # Verifica token y muestra muestra de saves
   python ig_fetcher.py             # Retorna saves como JSON a stdout
 """
 import argparse
 import json
-import re
 import sys
-from datetime import datetime, timezone
-from pathlib import Path
 
-# ── Importar agent_browser_session desde instagram-transcriber ────────────────
-_TRANSCRIBER_DIR = Path(r"C:\Users\duvan\OneDrive\Documentos\scraperinstagram\instagram-transcriber")
-if str(_TRANSCRIBER_DIR) not in sys.path:
-    sys.path.insert(0, str(_TRANSCRIBER_DIR))
+import requests
 
-from scraper.agent_browser_session import get_instagram_cookies
+from config import META_ACCESS_TOKEN, IG_USER_ID
 
-# ── Endpoints de Instagram ─────────────────────────────────────────────────────
-_IG_APP_ID   = "936619743392459"
-_SAVED_URL   = "https://www.instagram.com/api/v1/feed/saved/posts/"
-_COLLECT_URL = "https://www.instagram.com/api/v1/collections/list/"
-_COLLECT_MEDIA_URL = "https://www.instagram.com/api/v1/feed/collection/{collection_id}/posts/"
+_GRAPH_BASE = "https://graph.facebook.com/v19.0"
+_FIELDS = (
+    "id,caption,media_type,media_url,permalink,"
+    "timestamp,username,like_count,comments_count,thumbnail_url"
+)
 
 
-def _make_headers(cookies: dict) -> dict:
+def _media_type_label(media_type: str) -> str:
     return {
-        "x-ig-app-id": _IG_APP_ID,
-        "x-csrftoken": cookies.get("csrftoken", ""),
-        "x-requested-with": "XMLHttpRequest",
-        "accept": "*/*",
-        "accept-language": "en-US,en;q=0.9",
-        "referer": "https://www.instagram.com/",
-        "origin": "https://www.instagram.com",
-        "user-agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/120.0.0.0 Safari/537.36"
-        ),
-    }
+        "IMAGE": "Post",
+        "VIDEO": "Reel",
+        "CAROUSEL_ALBUM": "Carousel",
+    }.get(media_type, "Post")
 
 
-def _get(url: str, headers: dict, cookies: dict, params: dict = None) -> dict:
-    import urllib.request, urllib.parse
-    if params:
-        url = url + "?" + urllib.parse.urlencode(params)
-    req = urllib.request.Request(url, headers={**headers,
-        "Cookie": "; ".join(f"{k}={v}" for k, v in cookies.items())})
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        return json.loads(resp.read().decode("utf-8"))
-
-
-def _media_type_label(media_type: int, product_type: str) -> str:
-    if media_type == 2:
-        return "Reel" if product_type == "clips" else "Video"
-    if media_type == 8:
-        return "Carousel"
-    return "Post"
-
-
-def _item_to_save(item: dict, collection: str = "Saved") -> dict:
-    media = item.get("media", item)  # algunos endpoints envuelven en "media"
-    shortcode = media.get("code") or media.get("shortcode", "")
-    taken_at = media.get("taken_at", 0)
-
-    caption_obj = media.get("caption") or {}
-    caption = caption_obj.get("text", "") if isinstance(caption_obj, dict) else str(caption_obj or "")
-
-    user = media.get("user", {}) or {}
-    media_type = media.get("media_type", 1)
-    product_type = media.get("product_type", "") or ""
-
-    ts = (datetime.fromtimestamp(taken_at, tz=timezone.utc).isoformat()
-          if taken_at else "")
-
+def _item_to_save(item: dict) -> dict:
     return {
-        "media_id": str(media.get("pk") or media.get("id", "")),
-        "url": f"https://www.instagram.com/reel/{shortcode}/" if shortcode else "",
-        "author": user.get("username", ""),
-        "caption": caption[:2000],
-        "content_type": _media_type_label(media_type, product_type),
-        "collection": collection,
-        "taken_at": ts,
-        "views": (media.get("view_count") or media.get("play_count") or
-                  media.get("video_view_count") or 0),
-        "likes": media.get("like_count") or 0,
-        "comments": media.get("comment_count") or 0,
+        "media_id":    item.get("id", ""),
+        "url":         item.get("permalink", ""),
+        "media_url":   item.get("media_url") or item.get("thumbnail_url", ""),
+        "author":      item.get("username", ""),
+        "caption":     (item.get("caption") or "")[:2000],
+        "content_type": _media_type_label(item.get("media_type", "IMAGE")),
+        "collection":  "Saved",
+        "taken_at":    item.get("timestamp", ""),
+        "views":       0,  # Graph API no expone views para saves de terceros
+        "likes":       item.get("like_count") or 0,
+        "comments":    item.get("comments_count") or 0,
     }
 
 
 def fetch_saved_posts(max_posts: int = 50) -> list[dict]:
     """
-    Descarga los posts guardados (coleccion principal) usando las cookies del agent-browser.
+    Descarga los posts guardados via Meta Graph API.
+    Requiere permiso user_saved_media en el token.
     """
-    raw_cookies = get_instagram_cookies()
-    cookies = {c["name"]: c["value"] for c in raw_cookies}
-    headers = _make_headers(cookies)
-
     results = []
-    next_max_id = None
+    url = f"{_GRAPH_BASE}/{IG_USER_ID}/saved_media"
+    params = {
+        "fields": _FIELDS,
+        "access_token": META_ACCESS_TOKEN,
+        "limit": 25,
+    }
 
     while len(results) < max_posts:
-        params = {"num_results": "20"}
-        if next_max_id:
-            params["max_id"] = next_max_id
-
         try:
-            data = _get(_SAVED_URL, headers, cookies, params)
+            resp = requests.get(url, params=params, timeout=30)
+            resp.raise_for_status()
+            data = resp.json()
+        except requests.HTTPError as e:
+            body = e.response.json() if e.response else {}
+            err = body.get("error", {})
+            print(f"[ig] Error Graph API {err.get('code')}: {err.get('message')}", file=sys.stderr)
+            if err.get("code") == 190:
+                print("[ig] Token expirado o invalido. Renovar en Meta Developer Portal.", file=sys.stderr)
+            if err.get("code") == 200:
+                print("[ig] Permiso user_saved_media no habilitado en el token.", file=sys.stderr)
+            break
         except Exception as e:
-            print(f"[ig] Error al llamar API: {e}", file=sys.stderr)
+            print(f"[ig] Error de conexion: {e}", file=sys.stderr)
             break
 
-        items = data.get("items", [])
-        for item in items:
-            save = _item_to_save(item, "Saved")
+        for item in data.get("data", []):
+            save = _item_to_save(item)
             if save["media_id"]:
                 results.append(save)
             if len(results) >= max_posts:
                 break
 
-        if not data.get("more_available"):
+        paging = data.get("paging", {})
+        next_url = paging.get("next")
+        if not next_url or len(results) >= max_posts:
             break
-        next_max_id = data.get("next_max_id")
-        if not next_max_id:
-            break
+        url = next_url
+        params = {}  # La URL "next" ya incluye todos los parámetros
 
     return results
 
 
 def cmd_test():
-    print("[ig] Cargando cookies del agent-browser...")
-    raw_cookies = get_instagram_cookies()
-    cookies = {c["name"]: c["value"] for c in raw_cookies}
-    print(f"[ig] {len(raw_cookies)} cookies cargadas — sessionid: {'SI' if 'sessionid' in cookies else 'NO'}")
+    print("[ig] Verificando token con Meta Graph API...")
+    try:
+        resp = requests.get(
+            f"{_GRAPH_BASE}/me",
+            params={"fields": "id,name", "access_token": META_ACCESS_TOKEN},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        me = resp.json()
+        print(f"[ig] Token valido — ID: {me.get('id')} | Nombre: {me.get('name')}")
+    except Exception as e:
+        print(f"[ig] Error verificando token: {e}", file=sys.stderr)
+        return
 
-    print("[ig] Probando endpoint de saves...")
-    headers = _make_headers(cookies)
-    data = _get(_SAVED_URL, headers, cookies, {"num_results": "3"})
-    items = data.get("items", [])
-    print(f"[ig] Saves encontrados (muestra 3): {len(items)}")
-    for item in items:
-        save = _item_to_save(item)
-        print(f"  • @{save['author']} — {save['content_type']} — {save['url']}")
-    print(f"[ig] more_available: {data.get('more_available')}")
+    print("[ig] Probando endpoint /saved_media (muestra 3)...")
+    saves = fetch_saved_posts(max_posts=3)
+    print(f"[ig] Saves obtenidos: {len(saves)}")
+    for s in saves:
+        print(f"  • @{s['author']} — {s['content_type']} — {s['url']}")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--test", action="store_true", help="Verificar cookies y mostrar muestra")
+    parser.add_argument("--test", action="store_true", help="Verificar token y mostrar muestra")
     parser.add_argument("--max", type=int, default=50, help="Maximo de saves a descargar")
     args = parser.parse_args()
 

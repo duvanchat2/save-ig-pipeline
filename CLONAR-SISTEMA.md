@@ -484,14 +484,9 @@ Sistema @byduvan_ai IG  (página raíz)
 
 | Plantilla | Link para duplicar |
 |-----------|-------------------|
-| 📥 Raw Saves DB | **REVISIÓN REQUERIDA** — El creador debe publicar la plantilla y agregar el link aquí |
-| 💡 Content Ideas DB | **REVISIÓN REQUERIDA** — El creador debe publicar la plantilla y agregar el link aquí |
+| 🗂️ IG Saver (contiene ambas DBs) | [Duplicar en Notion](https://principled-typhoon-80d.notion.site/IG-Saver-360b04d2a7d68009b23cea0bd8529e88) |
 
-**Cómo publicar como plantilla (para el creador):**
-1. Abrir la página raíz "IG Saver" en Notion
-2. Click en `...` → `Share` → `Publish to web`
-3. Activar `Allow duplicate as template`
-4. Copiar el link y reemplazar los "REVISIÓN REQUERIDA" de arriba
+> Al duplicar obtienes la página "IG Saver" con las dos DBs ya configuradas (📥 Raw Saves + 💡 Content Ideas). Copia los IDs de cada DB desde su URL y pégalos en `.env`.
 
 ---
 
